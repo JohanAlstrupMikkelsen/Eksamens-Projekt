@@ -79,9 +79,6 @@ class Player:
 class Game:
     def __init__(self):
         self.deck = Deck()
-        bet = int(input("Hvor meget vil du satse? "))
-        self.player = Player(bet)
-        self.dealer = Hand(0)  # Dealer har dummy-bet
 
     # Start spillet med to kort til spiller og dealer
     def start(self):
@@ -158,6 +155,10 @@ class Game:
 
     # Kør hele spillet
     def play(self):
+        bet = int(input("Hvor meget vil du satse? "))
+        self.player = Player(bet)
+        self.dealer = Hand(0)
+
         self.start()
         self.player_turn()
         self.dealer_turn()
@@ -165,4 +166,11 @@ class Game:
 
 if __name__ == "__main__":
     game = Game()
-    game.play()
+
+    while True:
+        game.play()
+
+        again = input("\nVil du spille igen? (y/n): ").lower()
+        if again != "y":
+            print("Tak for spillet!")
+            break
