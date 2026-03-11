@@ -14,11 +14,11 @@ class Card:
             return int(self.rank)
 
     def __str__(self):
-        return f"{self.rank} of {self.suit}"
+        return f"{self.suit}  of {self.rank}"
 
 class Deck:
     def __init__(self):
-        suits = ["Hjerter", "Ruder", "Klør", "Spar"]
+        suits = ["♥️" , "♦️" , "♣️" , "♠️"]
         ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
         self.cards = [Card(suit, rank) for suit in suits for rank in ranks]
         random.shuffle(self.cards)
@@ -53,8 +53,9 @@ class Hand:
         return ", ".join(str(card) for card in self.cards)
 
 class Player:
-    def __init__(self, bet):
-        self.hands = [Hand(bet)]
+    def __init__(self):
+        self.balance = 100
+        self.hands = []
 
     # Split hånd
     def split(self, hand_index, deck):
@@ -148,16 +149,30 @@ class Game:
                 print(f"Hand {i+1}: You busted! Lose {hand.bet}")
             elif dealer_value > 21 or player_value > dealer_value:
                 print(f"Hand {i+1}: You won! Win {hand.bet}")
+                self.player.balance += hand.bet * 2
             elif player_value < dealer_value:
                 print(f"Hand {i+1}: You lost! Lose {hand.bet}")
             else:
                 print(f"Hand {i+1}: Even. Bet returned {hand.bet}")
+                self.player.balance += hand.bet
 
     # Kør hele spillet
     def play(self):
+
+        print(f"\nDin saldo: {self.player.balance}")
+
         bet = int(input("Hvor meget vil du satse? "))
-        self.player = Player(bet)
+
+        while bet > self.player.balance:
+            print("Du har ikke så mange penge!")
+            bet = int(input("Hvor meget vil du satse? "))
+
+        self.player.balance -= bet
+
+        self.player.hands = [Hand(bet)]
         self.dealer = Hand(0)
+
+        self.deck = Deck()
 
         self.start()
         self.player_turn()
@@ -166,11 +181,16 @@ class Game:
 
 if __name__ == "__main__":
     game = Game()
+    game.player = Player()
 
     while True:
         game.play()
 
-        again = input("\nVil du spille igen? (y/n): ").lower()
-        if again != "y":
+        if game.player.balance <= 0:
+            print("Du er løbet tør for penge!")
+            break
+
+        again = input("\nVil du spille igen? (y/n): ")
+        if again.lower() != "y":
             print("Tak for spillet!")
             break
