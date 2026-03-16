@@ -28,7 +28,7 @@ class Card:
 
 class Deck:
     def __init__(self, num_decks=6):
-        suits = ["♥","♦","♣","♠"]
+        suits = ["♥️","♦️","♣️","♠️"]
         ranks = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"]
         # lav flere decks
         self.cards = [Card(s,r) for s in suits for r in ranks for _ in range(num_decks)]
@@ -76,14 +76,49 @@ class Player:
         self.balance = 100
         self.hands = []
 
+    def can_split(self):
+        # kun muligt hvis første hånd har 2 kort af samme værdi
+        hand = self.hands[0]
+        return len(hand.cards) == 2 and hand.cards[0].value() == hand.cards[1].value()
+
+    def split_hand(self, deck):
+        if not self.can_split():
+            return False  # kan ikke splitte
+
+        hand = self.hands[0]
+        card1 = hand.cards[0]
+        card2 = hand.cards[1]
+
+        # hver hånd får samme bet som originalen
+        if hand.bet > self.balance:
+            return False  # ikke nok penge til at splitte
+
+        self.balance -= hand.bet
+
+        hand1 = Hand(hand.bet)
+        hand2 = Hand(hand.bet)
+
+        hand1.add_card(card1)
+        hand2.add_card(card2)
+
+        # træk ét kort til hver hånd
+        hand1.add_card(deck.draw())
+        hand2.add_card(deck.draw())
+
+        self.hands = [hand1, hand2]
+
+        return True
+
 
 # ---------- GAME ----------
+
 
 class Game:
 
     def __init__(self):
         self.player = Player()
-        self.deck = Deck(num_decks=6)  
+        self.deck = Deck(num_decks=6)
+        self.current_hand = 0
 
     def start_round(self,bet):
 
@@ -96,7 +131,10 @@ class Game:
         self.deck = Deck()
 
         self.player.hands = [Hand(bet)]
+        self.current_hand = 0
+
         self.dealer = Hand(0)
+
 
         self.player.balance -= bet
         balance_var.set(self.player.balance)
@@ -108,44 +146,58 @@ class Game:
         self.update_gui(initial=True)
 
 
-    def update_gui(self,initial=False):
+    def update_gui(self, initial=False):
+        text = ""
+        for i, hand in enumerate(self.player.hands):
 
-        player_cards.set(" ".join(str(c) for c in self.player.hands[0].cards))
-        player_value.set(self.player.hands[0].value())
+            marker = "◀" if i == self.current_hand else ""
+
+            text += f"Hånd {i+1}: " + " ".join(str(c) for c in hand.cards) + f" (Value: {hand.value()}) {marker}\n"
+
+        player_cards.set(text.strip())
 
         if initial:
             dealer_cards.set(f"{self.dealer.cards[0]} ?")
+            dealer_value.set("")   # skjul value
         else:
             dealer_cards.set(" ".join(str(c) for c in self.dealer.cards))
+            dealer_value.set(self.dealer.value())
 
-        dealer_value.set(self.dealer.value())
 
 
     def hit(self):
 
-        hand = self.player.hands[0]
+        hand = self.player.hands[self.current_hand]
         hand.add_card(self.deck.draw())
 
         self.update_gui(initial=True)
 
         if hand.value() > 21:
-            result.set("Bust! You lose.")
-            self.update_gui()
 
+            if self.current_hand < len(self.player.hands) - 1:
+                self.current_hand += 1
+                result.set("Bust! Next hand.")
+            else:
+                result.set("Bust! Dealer wins.")
+                self.update_gui()
 
     def stand(self):
+
+        if self.current_hand < len(self.player.hands) - 1:
+            self.current_hand += 1
+            result.set("Next hand")
+            return
 
         while self.dealer.value() < 17:
             self.dealer.add_card(self.deck.draw())
 
         self.update_gui()
-
         self.check_result()
 
 
     def double(self):
 
-        hand = self.player.hands[0]
+        hand = self.player.hands[self.current_hand]
 
         if hand.bet > self.player.balance:
             result.set("Not enough money to double")
@@ -159,28 +211,46 @@ class Game:
 
         if hand.value() > 21:
             result.set("Bust after double!")
-            self.update_gui()
-            return
 
         self.stand()
 
 
+    def split(self):
+        if self.player.split_hand(self.deck):
+            result.set("Hand splitted!")
+            self.update_gui()
+        else:
+            result.set("Cannot split!")
+
+
+
     def check_result(self):
 
-        player_val = self.player.hands[0].value()
         dealer_val = self.dealer.value()
+        message = ""
 
-        if dealer_val > 21 or player_val > dealer_val:
-            result.set("You win!")
-            self.player.balance += self.player.hands[0].bet*2
+        if dealer_val > 21:
+            message = "Dealer bust! You win!"
 
-        elif player_val < dealer_val:
-            result.set("Dealer wins!")
+        for hand in self.player.hands:
 
-        else:
-            result.set("Push.")
-            self.player.balance += self.player.hands[0].bet
+            player_val = hand.value()
 
+            if player_val > 21:
+                continue
+
+            if dealer_val > 21 or player_val > dealer_val:
+                self.player.balance += hand.bet * 2
+                message = "You win!"
+
+            elif player_val == dealer_val:
+                self.player.balance += hand.bet
+                message = "Push."
+
+            else:
+                message = "Dealer wins!"
+
+        result.set(message)
         balance_var.set(self.player.balance)
 
 
@@ -245,6 +315,7 @@ ttk.Label(gameframe, textvariable=shufle_var, font=("Arial",12), foreground="red
 ttk.Label(gameframe,text="Balance").grid(row=0,column=0)
 ttk.Label(gameframe,textvariable=balance_var,font=("Arial",14)).grid(row=1,column=0)
 
+
 # ---------- BUTTONS ----------
 
 buttonframe = ttk.Frame(gameframe)
@@ -253,7 +324,7 @@ buttonframe.grid(row=8,column=0,pady=20)
 ttk.Button(buttonframe,text="Hit",command=game.hit).grid(row=0,column=0,padx=5)
 ttk.Button(buttonframe,text="Stand",command=game.stand).grid(row=0,column=1,padx=5)
 ttk.Button(buttonframe,text="Double",command=game.double).grid(row=0,column=2,padx=5)
-
+ttk.Button(buttonframe,text="Split",command=game.split).grid(row=0,column=3,padx=5)
 
 ttk.Label(gameframe,textvariable=result,font=("Arial",14)).grid(row=9,column=0,pady=10)
 
