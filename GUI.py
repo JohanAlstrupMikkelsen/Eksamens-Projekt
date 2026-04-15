@@ -11,18 +11,22 @@ root.title("Blackjack")
 
 class Card:
     def __init__(self, suit, rank):
-        self.suit = suit
-        self.rank = rank
+        # Initialiserer et kort med kulør (suit) og værdi (rank)
+        self.suit = suit   # Fx ♥, ♠, ♦, ♣
+        self.rank = rank   # Fx 2-10, J, Q, K, A
 
     def value(self):
+        # Returnerer kortets værdi i Blackjack
         if self.rank in ["J","Q","K"]:
-            return 10
+            return 10  # Billedkort har værdien 10
         elif self.rank == "A":
-            return 11
+            return 11  # Es starter som 11 (kan senere blive 1 i Hand-klassen)
         else:
-            return int(self.rank)
+            return int(self.rank)  # Tal-kort (2-10) returneres som deres værdi
 
     def __str__(self):
+        # Returnerer en tekst-repræsentation af kortet
+        # Fx "A♠" eller "10♥"
         return f"{self.rank}{self.suit}"
 
 
@@ -46,34 +50,85 @@ class Deck:
         random.shuffle(self.cards)
         shufle_var.set("")                    # nulstil efter shuffle
 
+    """
+    START Deck
+
+    OPRET liste af kulører
+    OPRET liste af værdier
+
+    OPRET kortliste:
+        FOR hver kulør
+            FOR hver værdi
+                GENTAG antal decks gange
+                    tilføj nyt kort til listen
+                SLUT
+            SLUT
+        SLUT
+    bland kortene
+    SLUT
+
+    START draw
+        IF antal kort < 3 decks THEN
+            bland kortene igen
+        END IF
+        returnér øverste kort
+    SLUT
+
+    START shuffle_shoe
+        vis "Blander kortene…" i GUI
+        opdater GUI
+        bland kortene
+        fjern besked
+    SLUT
+    """
+
+
+
 
 class Hand:
     def __init__(self, bet):
-        self.cards = []
-        self.bet = bet
+        # Initialiserer en hånd med en indsats (bet)
+        self.cards = []   # Liste der indeholder kortene i hånden
+        self.bet = bet    # Spillerens indsats på denne hånd
 
-    def add_card(self,card):
-        self.cards.append(card)
+    def add_card(self, card):
+        self.cards.append(card)# Tilføjer et kort til hånden
 
     def value(self):
-        total = 0
-        aces = 0
-
+        # Beregner den samlede værdi af hånden (Blackjack regler)
+        total = 0   # Samlet værdi af kort
+        aces = 0    # Antal esser (fordi de kan være 1 eller 11)
+        # Gennemløber alle kort i hånden
         for card in self.cards:
-            total += card.value()
+            total += card.value()  # Lægger kortets værdi til totalen
+            # Tæller antal esser
             if card.rank == "A":
                 aces += 1
-
+        # Hvis total er over 21 og der er esser,
+        # omregnes et es fra 11 → 1 (trækker 10 fra)
         while total > 21 and aces:
             total -= 10
             aces -= 1
+        return total  # Returnerer den endelige værdi
 
-        return total
+    def show_cards(self):
+        # Returnerer en tekststreng med alle kort i hånden
+        # Fx: "10♠ A♥"
+        return " ".join(str(c) for c in self.cards)
 
+class DealerHand(Hand):
+    # DealerHand arver fra Hand (inheritance)
+    def show_cards(self, hide_second=True):
+        # Metoden er en override af Hand.show_cards (polymorfisme)
+        # Hvis dealerens andet kort skal skjules
+        if hide_second and len(self.cards) > 1:
+            return f"{self.cards[0]} ?"  # Viser kun første kort
+        # Ellers vises alle kort
+        return " ".join(str(c) for c in self.cards)
 
 class Player:
     def __init__(self):
-        self.balance = 100
+        self.balance = 1000
         self.hands = []
 
     def can_split(self):
@@ -133,7 +188,7 @@ class Game:
         self.player.hands = [Hand(bet)]
         self.current_hand = 0
 
-        self.dealer = Hand(0)
+        self.dealer = DealerHand(0)
 
 
         self.player.balance -= bet
@@ -145,6 +200,35 @@ class Game:
 
         self.update_gui(initial=True)
 
+    """
+    START start_round(bet)
+
+    IF bet er større end spillerens balance THEN
+        vis besked "Not enough money!" i result
+        STOP funktionen
+    END IF
+
+    nulstil resultatbesked
+
+    opret nyt deck ud fra deck number
+
+    opret en liste med én hånd til spilleren med indsatsen bet
+    sæt current_hand til 0
+
+    opret dealer hånd
+
+    træk bet fra spillerens balance med balance.var
+    opdater balance på skærmen med
+
+    GENTAG 2 gange
+        giv et kort til spillerens hånd
+        giv et kort til dealerens hånd
+    SLUT GENTAG
+
+    opdater brugergrænseflade (initial visning)
+
+    SLUT
+    """
 
     def update_gui(self, initial=False):
         text = ""
@@ -157,10 +241,10 @@ class Game:
         player_cards.set(text.strip())
 
         if initial:
-            dealer_cards.set(f"{self.dealer.cards[0]} ?")
-            dealer_value.set("")   # skjul value
+            dealer_cards.set(self.dealer.show_cards(True))
+            dealer_value.set("")
         else:
-            dealer_cards.set(" ".join(str(c) for c in self.dealer.cards))
+            dealer_cards.set(self.dealer.show_cards(False))
             dealer_value.set(self.dealer.value())
 
 
@@ -170,22 +254,27 @@ class Game:
         hand = self.player.hands[self.current_hand]
         hand.add_card(self.deck.draw())
 
-        self.update_gui(initial=True)
-
         if hand.value() > 21:
 
             if self.current_hand < len(self.player.hands) - 1:
                 self.current_hand += 1
                 result.set("Bust! Next hand.")
+                self.update_gui(initial=True)
+                return
+
             else:
                 result.set("Bust! Dealer wins.")
                 self.update_gui()
+                return
+
+        self.update_gui(initial=True)
 
     def stand(self):
 
         if self.current_hand < len(self.player.hands) - 1:
             self.current_hand += 1
             result.set("Next hand")
+            self.update_gui(initial=True)
             return
 
         while self.dealer.value() < 17:
@@ -218,7 +307,7 @@ class Game:
     def split(self):
         if self.player.split_hand(self.deck):
             result.set("Hand splitted!")
-            self.update_gui()
+            self.update_gui(initial=True)   # skjul dealer kort
         else:
             result.set("Cannot split!")
 
